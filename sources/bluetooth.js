@@ -45,6 +45,12 @@ export class BluetoothSource {
             return;
         const battery = device.connected && device.battery_percentage > 0 ? ` · ${Math.round(device.battery_percentage)}%` : '';
         const icon = Gio.ThemedIcon.new_from_names([`${device.icon}-symbolic`, 'bluetooth-active-symbolic']);
-        this._island.toast(icon, `${device.alias} ${device.connected ? 'connesso' : 'disconnesso'}${battery}`, {color: BLUE});
+        const statusText = `${device.connected ? 'Connesso' : 'Disconnesso'}${battery}`;
+        this._island.toast(icon, `${device.alias} ${device.connected ? 'connesso' : 'disconnesso'}${battery}`, {
+            color: BLUE,
+            placementGroup: 'alert',
+            titleText: device.alias,
+            subtitle: statusText,
+        });
     }
 }

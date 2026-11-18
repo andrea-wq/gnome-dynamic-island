@@ -275,6 +275,31 @@
     max-width: 280px;
 }
 
+.di-below-toast {
+    background-color: #0b0b0f;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    padding: 8px 14px;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.58);
+}
+
+.di-below-toast:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.di-below-toast-title {
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 9.5pt;
+    max-width: 280px;
+}
+
+.di-below-toast-sub {
+    color: #a1a1a6;
+    font-size: 8.5pt;
+    max-width: 280px;
+}
+
 .di-level {
     height: 7px;
     border-radius: 4px;
@@ -563,6 +588,19 @@
     font-weight: 600;
     min-width: 38px;
     text-align: right;
+    font-feature-settings: "tnum";
+}
+
+.di-media-seek-row {
+    spacing: 8px;
+    padding: 2px 2px 0 2px;
+}
+
+.di-media-time {
+    color: #a1a1a6;
+    font-size: 7.8pt;
+    font-weight: 600;
+    min-width: 34px;
     font-feature-settings: "tnum";
 }
 

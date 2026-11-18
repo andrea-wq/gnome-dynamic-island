@@ -211,6 +211,8 @@ export const Island = GObject.registerClass({
         this._activeTab = 'media';
         this._systemSubView = null; // null | 'wifi' | 'bluetooth'
         this._pendingWifi = null;
+        this._wifiBusySsid = null;
+        this._btBusyPath = null;
         this._notifications = [];
         this._shelfFiles = [];
         this._dragOpening = false;
@@ -220,6 +222,17 @@ export const Island = GObject.registerClass({
         this._topCovered = false;
         this._focusedWin = null;
         this._dodgeCheckId = 0;
+        this._belowToast = null;
+        this._belowToastId = 0;
+        this._belowToastAction = null;
+        this._mediaLengthUs = 0;
+        this._mediaPosUs = 0;
+        this._mediaTrackId = null;
+        this._mediaCanSeek = false;
+        this._mediaPosId = 0;
+        this._mediaDragging = false;
+        this._syncingMediaSlider = false;
+        this._mediaSeekCommitId = 0;
 
         // Prevent Mutter KMS Direct Scanout from bypassing the Clutter stage when a window covers 0,0,1920x1080
         try {
@@ -434,6 +447,10 @@ export const Island = GObject.registerClass({
             'changed::auto-dodge', () => {
                 this._checkAutoDodge();
                 this._refresh();
+            },
+            'changed::toast-position', () => {
+                if (this._settings.get_string('toast-position') !== 'below')
+                    this._hideBelowToast(true);
             },
             'changed::show-workspaces', () => {
                 this._syncWorkspaces();
@@ -849,9 +866,16 @@ export const Island = GObject.registerClass({
 
         this._mediaCard = new St.BoxLayout({
             style_class: 'di-card',
+            orientation: Clutter.Orientation.VERTICAL,
+            style: 'spacing: 8px;',
+            x_expand: true,
+        });
+
+        const mediaTopRow = new St.BoxLayout({
             orientation: Clutter.Orientation.HORIZONTAL,
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
+            style: 'spacing: 12px;',
         });
 
         this._expandedArt = new St.Button({
@@ -859,7 +883,7 @@ export const Island = GObject.registerClass({
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._expandedArt.connect('clicked', () => this._player?.raise());
-        this._mediaCard.add_child(this._expandedArt);
+        mediaTopRow.add_child(this._expandedArt);
 
         this._text = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
@@ -885,7 +909,7 @@ export const Island = GObject.registerClass({
         this._artist.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         this._text.add_child(this._title);
         this._text.add_child(this._artist);
-        this._mediaCard.add_child(this._text);
+        mediaTopRow.add_child(this._text);
 
         this._controls = new St.BoxLayout({
             orientation: Clutter.Orientation.HORIZONTAL,
@@ -897,7 +921,61 @@ export const Island = GObject.registerClass({
         this._playButton.add_style_class_name('di-play');
         this._controls.add_child(this._playButton);
         this._controls.add_child(this._iconButton('media-skip-forward-symbolic', () => this._player?.next()));
-        this._mediaCard.add_child(this._controls);
+        mediaTopRow.add_child(this._controls);
+        this._mediaCard.add_child(mediaTopRow);
+
+        // Media Track Seek Row (Elapsed  [==== Slider ====]  Total)
+        this._mediaSeekRow = new St.BoxLayout({
+            style_class: 'di-media-seek-row',
+            orientation: Clutter.Orientation.HORIZONTAL,
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: false,
+        });
+        this._mediaCurLabel = new St.Label({
+            style_class: 'di-media-time',
+            text: '0:00',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._mediaSeekSlider = new Slider(0);
+        this._mediaSeekSlider.x_expand = true;
+        this._mediaSeekSlider.connect('drag-begin', () => {
+            this._mediaDragging = true;
+            if (this._mediaSeekCommitId) {
+                GLib.source_remove(this._mediaSeekCommitId);
+                this._mediaSeekCommitId = 0;
+            }
+        });
+        this._mediaSeekSlider.connect('drag-end', () => {
+            this._mediaDragging = false;
+            this._commitMediaSeek(this._mediaSeekSlider.value);
+        });
+        this._mediaSeekSlider.connect('notify::value', () => {
+            if (this._syncingMediaSlider || this._mediaLengthUs <= 0)
+                return;
+            const previewUs = Math.round(this._mediaSeekSlider.value * this._mediaLengthUs);
+            this._mediaCurLabel.text = this._formatMediaTime(previewUs);
+            if (!this._mediaDragging) {
+                if (this._mediaSeekCommitId)
+                    GLib.source_remove(this._mediaSeekCommitId);
+                this._mediaSeekCommitId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
+                    this._mediaSeekCommitId = 0;
+                    this._commitMediaSeek(this._mediaSeekSlider.value);
+                    return GLib.SOURCE_REMOVE;
+                });
+            }
+        });
+        this._mediaDurLabel = new St.Label({
+            style_class: 'di-media-time',
+            text: '0:00',
+            style: 'text-align: right;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._mediaSeekRow.add_child(this._mediaCurLabel);
+        this._mediaSeekRow.add_child(this._mediaSeekSlider);
+        this._mediaSeekRow.add_child(this._mediaDurLabel);
+        this._mediaCard.add_child(this._mediaSeekRow);
+
         this._mediaPage.add_child(this._mediaCard);
 
         // Notifications Section (Header with Clear All button + Scrollable List showing ~3 items)
@@ -1307,7 +1385,9 @@ export const Island = GObject.registerClass({
             const w = count * 44 + Math.max(0, count - 1) * 6 + 14;
             const h = 56;
             const x = monitor.x + Math.floor((monitor.width - w) / 2);
-            const baseY = (this._targetY ?? this.y) + (this._targetH ?? this.height);
+            let baseY = (this._targetY ?? this.y) + (this._targetH ?? this.height);
+            if (this._belowToast?.visible)
+                baseY = Math.max(baseY, this._belowToast.y + this._belowToast.height);
             let y = baseY + 6;
             if (y + h > monitor.y + monitor.height - 8)
                 y = Math.max(monitor.y + 4, (this._targetY ?? this.y) - h - 6);
@@ -2107,10 +2187,13 @@ export const Island = GObject.registerClass({
                     orientation: Clutter.Orientation.VERTICAL,
                     x_expand: true,
                 });
+                const isBusy = this._wifiBusySsid === ap.ssid;
                 const nameLbl = new St.Label({style_class: 'di-qs-title', text: ap.ssid});
                 const subLbl = new St.Label({
                     style_class: 'di-qs-sub',
-                    text: ap.active ? 'Connesso' : (ap.saved ? 'Salvata · Clicca per connettere' : `${ap.strength}%`),
+                    text: isBusy
+                        ? (ap.active ? 'Disconnessione…' : 'Connessione…')
+                        : (ap.active ? 'Connesso · Clicca per disconnettere' : (ap.saved ? 'Salvata · Clicca per connettere' : `${ap.strength}%`)),
                 });
                 nameLbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
                 textCol.add_child(nameLbl);
@@ -2124,19 +2207,37 @@ export const Island = GObject.registerClass({
 
                 rowBtn.set_child(row);
                 rowBtn.connect('clicked', () => {
-                    if (ap.active)
+                    if (this._wifiBusySsid)
                         return;
+                    if (ap.active) {
+                        this._wifiBusySsid = ap.ssid;
+                        this._rebuildSystemSubList();
+                        this._sysControls.disconnectWifi(ok => {
+                            this._wifiBusySsid = null;
+                            if (!ok)
+                                this.toast('network-wireless-offline-symbolic', `Impossibile disconnettere ${ap.ssid}`, {duration: 2400});
+                            this._rebuildSystemSubList();
+                        });
+                        return;
+                    }
+                    this._wifiBusySsid = ap.ssid;
                     const res = this._sysControls.connectWifi(ap.ssid, ap.apPath, null, ok => {
+                        this._wifiBusySsid = null;
                         if (!ok)
                             this.toast('network-wireless-offline-symbolic', `Impossibile connettersi a ${ap.ssid}`, {duration: 2400});
                         this._rebuildSystemSubList();
                     });
                     if (res.needsPassword) {
+                        this._wifiBusySsid = null;
                         this._pendingWifi = {ssid: ap.ssid, apPath: ap.apPath};
                         this._wifiPwdEntry.hint_text = `Password per ${ap.ssid}…`;
                         this._wifiPwdRow.visible = true;
                         this._wifiPwdEntry.grab_key_focus();
                         this._refresh();
+                    } else if (res.started) {
+                        this._rebuildSystemSubList();
+                    } else {
+                        this._wifiBusySsid = null;
                     }
                 });
                 this._subListBox.add_child(rowBtn);
@@ -2184,11 +2285,14 @@ export const Island = GObject.registerClass({
                     orientation: Clutter.Orientation.VERTICAL,
                     x_expand: true,
                 });
+                const isBusy = this._btBusyPath === dev.path;
                 const nameLbl = new St.Label({style_class: 'di-qs-title', text: dev.name});
                 const batStr = dev.battery !== null ? ` · Batteria ${dev.battery}%` : '';
                 const subLbl = new St.Label({
                     style_class: 'di-qs-sub',
-                    text: (dev.connected ? 'Connesso' : 'Disconnesso') + batStr,
+                    text: isBusy
+                        ? (dev.connected ? 'Disconnessione…' : 'Connessione…')
+                        : ((dev.connected ? 'Connesso' : 'Disconnesso') + batStr),
                 });
                 nameLbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
                 textCol.add_child(nameLbl);
@@ -2197,13 +2301,22 @@ export const Island = GObject.registerClass({
 
                 row.add_child(new St.Label({
                     style_class: 'di-muted-label',
-                    text: dev.connected ? 'Disconnetti' : 'Connetti',
+                    text: isBusy ? 'Attendere…' : (dev.connected ? 'Disconnetti' : 'Connetti'),
                     y_align: Clutter.ActorAlign.CENTER,
                 }));
 
                 rowBtn.set_child(row);
                 rowBtn.connect('clicked', () => {
-                    this._sysControls.toggleBluetoothDevice(dev.path, !dev.connected, () => {
+                    if (this._btBusyPath === dev.path)
+                        return;
+                    this._btBusyPath = dev.path;
+                    this._rebuildSystemSubList();
+                    this._sysControls.toggleBluetoothDevice(dev.path, !dev.connected, ok => {
+                        this._btBusyPath = null;
+                        if (!ok) {
+                            const verb = dev.connected ? 'disconnettere' : 'connettere';
+                            this.toast('bluetooth-active-symbolic', `Impossibile ${verb} ${dev.name}`, {duration: 2400});
+                        }
                         this._rebuildSystemSubList();
                     });
                 });
@@ -2360,6 +2473,7 @@ export const Island = GObject.registerClass({
         this._systemPage.visible = tabId === 'system';
 
         this._syncHubSampler();
+        this._syncMediaPositionSampler();
         if (tabId === 'system')
             this._syncSystemControlsUI();
 
@@ -2920,6 +3034,23 @@ export const Island = GObject.registerClass({
         }
         if (this._toastId)
             GLib.source_remove(this._toastId);
+        if (this._belowToastId) {
+            GLib.source_remove(this._belowToastId);
+            this._belowToastId = 0;
+        }
+        if (this._mediaPosId) {
+            GLib.source_remove(this._mediaPosId);
+            this._mediaPosId = 0;
+        }
+        if (this._mediaSeekCommitId) {
+            GLib.source_remove(this._mediaSeekCommitId);
+            this._mediaSeekCommitId = 0;
+        }
+        if (this._belowToast) {
+            this._belowToast.remove_all_transitions();
+            this._belowToast.destroy();
+            this._belowToast = null;
+        }
         if (this._hoverId)
             GLib.source_remove(this._hoverId);
         if (this._hoverWatchId) {
@@ -3269,21 +3400,164 @@ export const Island = GObject.registerClass({
             this._sourceIcon.gicon = toGicon(source.icon);
             this._sourceLabel.text = source.name;
             this._source.visible = !!source.name;
+
+            const meta = player._playerProxy?.Metadata;
+            const rawLen = meta?.['mpris:length']?.deepUnpack?.() ?? 0;
+            this._mediaLengthUs = Number(rawLen) > 0 ? Number(rawLen) : 0;
+            this._mediaTrackId = meta?.['mpris:trackid']?.deepUnpack?.() ?? null;
+            this._mediaCanSeek = player._playerProxy?.CanSeek ?? true;
+            this._mediaSeekRow.visible = this._mediaLengthUs > 0;
+            this._mediaSeekSlider.reactive = !!this._mediaCanSeek;
+            if (this._mediaLengthUs > 0)
+                this._mediaDurLabel.text = this._formatMediaTime(this._mediaLengthUs);
+
             const key = `${player.trackTitle}\n${player.trackArtists.join(', ')}\n${player.trackCoverUrl}`;
             if (key !== this._trackKey) {
                 this._trackKey = key;
+                this._mediaPosUs = 0;
+                this._applyMediaSliderPos(0);
                 this._swapTrack(player);
             }
         } else {
             this._trackKey = null;
+            this._mediaLengthUs = 0;
+            this._mediaPosUs = 0;
+            this._mediaTrackId = null;
+            this._mediaSeekRow.visible = false;
             this._title.text = 'Nessun media in riproduzione';
             this._artist.text = 'Apri Spotify, browser o un player MPRIS';
             this._source.visible = false;
             this._setArtBackground(null);
         }
         this._refresh();
+        this._syncMediaPositionSampler();
         this._syncSpin();
         this._syncEqState();
+    }
+
+    _formatMediaTime(us) {
+        const totalSec = Math.max(0, Math.floor((us || 0) / 1000000));
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        if (h > 0)
+            return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    _applyMediaSliderPos(posUs) {
+        if (!this._mediaSeekSlider || this._mediaDragging || this._mediaLengthUs <= 0)
+            return;
+        const clamped = Math.max(0, Math.min(this._mediaLengthUs, posUs));
+        this._syncingMediaSlider = true;
+        try {
+            this._mediaSeekSlider.value = clamped / this._mediaLengthUs;
+            this._mediaCurLabel.text = this._formatMediaTime(clamped);
+        } finally {
+            this._syncingMediaSlider = false;
+        }
+    }
+
+    _syncMediaPositionSampler() {
+        const shouldRun = !this._destroyed && this._expanded && this._activeTab === 'media' &&
+            this._hasMusic && !this._toastActive && this._mediaLengthUs > 0;
+        if (shouldRun && !this._mediaPosId) {
+            this._pollMediaPosition();
+            this._mediaPosId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+                if (this._destroyed || !this._expanded || this._activeTab !== 'media' ||
+                    !this._hasMusic || this._mediaLengthUs <= 0) {
+                    this._mediaPosId = 0;
+                    return GLib.SOURCE_REMOVE;
+                }
+                this._pollMediaPosition();
+                return GLib.SOURCE_CONTINUE;
+            });
+        } else if (!shouldRun && this._mediaPosId) {
+            GLib.source_remove(this._mediaPosId);
+            this._mediaPosId = 0;
+        }
+    }
+
+    _pollMediaPosition() {
+        const player = this._player;
+        const busName = player?._playerProxy?.g_name;
+        const objPath = player?._playerProxy?.g_object_path || '/org/mpris/MediaPlayer2';
+        if (!busName || this._mediaDragging)
+            return;
+        Gio.DBus.session.call(
+            busName,
+            objPath,
+            'org.freedesktop.DBus.Properties',
+            'Get',
+            new GLib.Variant('(ss)', ['org.mpris.MediaPlayer2.Player', 'Position']),
+            null,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null,
+            (conn, res) => {
+                try {
+                    const [inner] = conn.call_finish(res).deepUnpack();
+                    const posUs = Number(inner?.deepUnpack ? inner.deepUnpack() : inner);
+                    if (this._destroyed || this._player !== player || !Number.isFinite(posUs))
+                        return;
+                    this._mediaPosUs = posUs;
+                    this._applyMediaSliderPos(posUs);
+                } catch (e) {
+                    // Ignore players that don't expose Position
+                }
+            }
+        );
+    }
+
+    _commitMediaSeek(fraction) {
+        const player = this._player;
+        const busName = player?._playerProxy?.g_name;
+        const objPath = player?._playerProxy?.g_object_path || '/org/mpris/MediaPlayer2';
+        if (!busName || this._mediaLengthUs <= 0 || !this._mediaCanSeek)
+            return;
+
+        const targetUs = Math.round(Math.max(0, Math.min(1, fraction)) * this._mediaLengthUs);
+        const prevPosUs = this._mediaPosUs;
+        this._mediaPosUs = targetUs;
+
+        const fallbackSeek = () => {
+            const offsetUs = targetUs - prevPosUs;
+            Gio.DBus.session.call(
+                busName,
+                objPath,
+                'org.mpris.MediaPlayer2.Player',
+                'Seek',
+                new GLib.Variant('(x)', [offsetUs]),
+                null,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+                null
+            );
+        };
+
+        if (typeof this._mediaTrackId === 'string' && this._mediaTrackId.startsWith('/')) {
+            Gio.DBus.session.call(
+                busName,
+                objPath,
+                'org.mpris.MediaPlayer2.Player',
+                'SetPosition',
+                new GLib.Variant('(ox)', [this._mediaTrackId, targetUs]),
+                null,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+                (conn, res) => {
+                    try {
+                        conn.call_finish(res);
+                    } catch (e) {
+                        fallbackSeek();
+                    }
+                }
+            );
+        } else {
+            fallbackSeek();
+        }
     }
 
     showNotification(notif) {
@@ -3371,7 +3645,20 @@ export const Island = GObject.registerClass({
         }
     }
 
-    toast(icon, text, {level = null, color = null, duration = 2200} = {}) {
+    toast(icon, text, {level = null, color = null, duration = 2200, placementGroup = null, titleText = null, subtitle = null, onActivate = null} = {}) {
+        let toastPos = 'inside';
+        if (placementGroup === 'alert') {
+            try {
+                toastPos = this._settings.get_string('toast-position');
+            } catch (e) {
+                toastPos = 'inside';
+            }
+        }
+        if (toastPos === 'below') {
+            this._showBelowToast(icon, titleText || text, subtitle, {color, duration, onActivate});
+            return;
+        }
+
         this._toastIcon.gicon = toGicon(icon);
         this._toastIcon.style = color ? `color: ${color};` : null;
         this._toastLabel.text = text;
@@ -3414,6 +3701,161 @@ export const Island = GObject.registerClass({
                 });
             }
         }
+    }
+
+    _ensureBelowToast() {
+        if (this._belowToast)
+            return this._belowToast;
+
+        const btn = new St.Button({
+            style_class: 'di-below-toast',
+            reactive: true,
+            visible: false,
+            can_focus: false,
+            pivot_point: new Graphene.Point({x: 0.5, y: 0}),
+            offscreen_redirect: Clutter.OffscreenRedirect.AUTOMATIC_FOR_OPACITY,
+        });
+        const row = new St.BoxLayout({
+            orientation: Clutter.Orientation.HORIZONTAL,
+            style: 'spacing: 10px;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._belowToastIcon = new St.Icon({
+            style_class: 'di-toast-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        const textCol = new St.BoxLayout({
+            orientation: Clutter.Orientation.VERTICAL,
+            style: 'spacing: 1px;',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._belowToastTitle = new St.Label({
+            style_class: 'di-below-toast-title',
+        });
+        this._belowToastTitle.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        this._belowToastSub = new St.Label({
+            style_class: 'di-below-toast-sub',
+        });
+        this._belowToastSub.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        textCol.add_child(this._belowToastTitle);
+        textCol.add_child(this._belowToastSub);
+
+        row.add_child(this._belowToastIcon);
+        row.add_child(textCol);
+        btn.set_child(row);
+
+        btn.connect('clicked', () => {
+            const action = this._belowToastAction;
+            this._belowToastAction = null;
+            this._hideBelowToast(false);
+            action?.();
+        });
+
+        Main.layoutManager.addTopChrome(btn, {trackFullscreen: false});
+        this._belowToast = btn;
+        return btn;
+    }
+
+    _showBelowToast(icon, title, subtitle, {color = null, duration = 3500, onActivate = null} = {}) {
+        if (this._destroyed)
+            return;
+        const monitor = Main.layoutManager.primaryMonitor;
+        if (!monitor)
+            return;
+
+        const box = this._ensureBelowToast();
+        this._belowToastAction = onActivate;
+        this._belowToastIcon.gicon = toGicon(icon);
+        this._belowToastIcon.style = color ? `color: ${color};` : null;
+        this._belowToastTitle.text = title || '';
+        this._belowToastSub.text = subtitle || '';
+        this._belowToastSub.visible = !!subtitle;
+
+        const wasVisible = box.visible;
+        box.remove_all_transitions();
+        box.set({scale_x: 1, scale_y: 1, translation_y: 0, opacity: 255});
+        box.show();
+        if (box.get_parent() === Main.uiGroup)
+            Main.uiGroup.set_child_above_sibling(box, null);
+
+        const [, natW] = box.get_preferred_width(-1);
+        const w = Math.round(natW);
+        const [, natH] = box.get_preferred_height(w);
+        const h = Math.round(natH);
+
+        const centerX = this._shown && this.visible
+            ? (this._targetX ?? this.x) + Math.round((this._targetW ?? this.width) / 2)
+            : monitor.x + Math.floor(monitor.width / 2);
+        const x = Math.max(monitor.x + 8, Math.min(monitor.x + monitor.width - w - 8, centerX - Math.floor(w / 2)));
+
+        let y;
+        if (this._shown && this.visible) {
+            const baseY = (this._targetY ?? this.y) + (this._targetH ?? this.height);
+            y = this._position === 'bottom-center'
+                ? Math.max(monitor.y + 8, (this._targetY ?? this.y) - h - 8)
+                : baseY + 8;
+        } else {
+            const topOffset = this._isTopBarHidden() ? 8 : Main.panel.height + 8;
+            y = monitor.y + topOffset;
+        }
+        box.set_position(x, y);
+
+        if (this._belowToastId)
+            GLib.source_remove(this._belowToastId);
+        this._belowToastId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, duration, () => {
+            this._belowToastId = 0;
+            this._hideBelowToast(false);
+            return GLib.SOURCE_REMOVE;
+        });
+
+        this._syncShelfTrayVisibility();
+
+        const {duration: animDur} = this._getAnimProfile();
+        if (!wasVisible && animDur > 0) {
+            box.set({opacity: 0, translation_y: -10, scale_x: 0.9, scale_y: 0.9});
+            box.ease({
+                opacity: 255,
+                translation_y: 0,
+                scale_x: 1,
+                scale_y: 1,
+                duration: Math.min(260, Math.max(180, animDur)),
+                mode: Clutter.AnimationMode.EASE_OUT_BACK,
+            });
+        }
+    }
+
+    _hideBelowToast(immediate = false) {
+        if (this._belowToastId) {
+            GLib.source_remove(this._belowToastId);
+            this._belowToastId = 0;
+        }
+        this._belowToastAction = null;
+        const box = this._belowToast;
+        if (!box || !box.visible)
+            return;
+
+        box.remove_all_transitions();
+        const {duration: animDur} = this._getAnimProfile();
+        if (immediate || animDur === 0) {
+            box.hide();
+            this._syncShelfTrayVisibility();
+            return;
+        }
+        box.ease({
+            opacity: 0,
+            translation_y: -8,
+            scale_x: 0.94,
+            scale_y: 0.94,
+            duration: 160,
+            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            onComplete: () => {
+                if (this._destroyed)
+                    return;
+                box.hide();
+                box.set({opacity: 255, translation_y: 0, scale_x: 1, scale_y: 1});
+                this._syncShelfTrayVisibility();
+            },
+        });
     }
 
     setIndicator(key, opts) {
@@ -3674,6 +4116,7 @@ export const Island = GObject.registerClass({
             global.stage.set_key_focus(null);
 
         this._syncHubSampler();
+        this._syncMediaPositionSampler();
         if (expanded && this._activeTab === 'system')
             this._syncSystemControlsUI();
         this._refresh();

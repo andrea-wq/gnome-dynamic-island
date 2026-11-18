@@ -125,6 +125,11 @@
       <default>true</default>
       <summary>Nascondi il popup standard di GNOME quando la notifica appare nell'isola</summary>
     </key>
+    <key name="toast-position" type="s">
+      <default>'inside'</default>
+      <summary>Posizione notifiche e avvisi Bluetooth</summary>
+      <description>Valori: inside, below</description>
+    </key>
     <key name="show-workspaces" type="b">
       <default>true</default>
       <summary>Mostra indicatore a pillola degli Spazi di Lavoro (Workspaces)</summary>

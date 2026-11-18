@@ -409,8 +409,11 @@ export class SystemControls {
         conn.add_setting(sWifi);
 
         if (secured && password) {
+            const secFlags = NM['80211ApSecurityFlags'];
+            const rsn = ap?.get_rsn_flags() ?? 0;
+            const saeOnly = secFlags && (rsn & secFlags.KEY_MGMT_SAE) && !(rsn & secFlags.KEY_MGMT_PSK);
             const sSec = new NM.SettingWirelessSecurity({
-                key_mgmt: 'wpa-psk',
+                key_mgmt: saeOnly ? 'sae' : 'wpa-psk',
                 psk: password,
             });
             conn.add_setting(sSec);
@@ -425,6 +428,22 @@ export class SystemControls {
             }
         });
         return {started: true, needsPassword: false};
+    }
+
+    disconnectWifi(onDone = null) {
+        const activeConn = this._wifiDev?.get_active_connection();
+        if (!this._nmClient || !activeConn) {
+            onDone?.(false);
+            return;
+        }
+        this._nmClient.deactivate_connection_async(activeConn, this._cancellable, (c, res) => {
+            try {
+                const ok = c.deactivate_connection_finish(res);
+                onDone?.(ok);
+            } catch (e) {
+                onDone?.(false, e.message);
+            }
+        });
     }
 
     // --- BLUETOOTH ---
@@ -449,7 +468,28 @@ export class SystemControls {
     setBluetoothPowered(powered) {
         if (!this._btClient)
             return;
-        this._btClient.default_adapter_powered = !!powered;
+        const on = !!powered;
+        try {
+            Gio.DBus.session.call(
+                'org.gnome.SettingsDaemon.Rfkill',
+                '/org/gnome/SettingsDaemon/Rfkill',
+                'org.freedesktop.DBus.Properties',
+                'Set',
+                new GLib.Variant('(ssv)', [
+                    'org.gnome.SettingsDaemon.Rfkill',
+                    'BluetoothAirplaneMode',
+                    new GLib.Variant('b', !on),
+                ]),
+                null,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                this._cancellable,
+                null
+            );
+        } catch (e) {
+            // Fallback directly to adapter power
+        }
+        this._btClient.default_adapter_powered = on;
     }
 
     getBluetoothDevices() {

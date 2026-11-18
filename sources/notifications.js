@@ -59,26 +59,33 @@ export class NotificationSource {
         if (!this._island || !this._settings?.get_boolean('show-notifications'))
             return;
         const title = notification.title || source.title || 'Notifica';
-        const body = notification.body ? ` — ${notification.body.replace(/\n+/g, ' ')}` : '';
+        const bodyText = notification.body?.replace(/\n+/g, ' ') || '';
+        const body = bodyText ? ` — ${bodyText}` : '';
         const icon = notification.gicon || source.icon || 'preferences-system-notifications-symbolic';
+
+        const onActivate = () => {
+            try {
+                notification.activate();
+            } catch (e) {
+                // Ignore if already dismissed
+            }
+        };
 
         this._island.showNotification({
             title,
-            body: notification.body?.replace(/\n+/g, ' ') || '',
+            body: bodyText,
             sourceName: source.title || '',
             icon,
-            onActivate: () => {
-                try {
-                    notification.activate();
-                } catch (e) {
-                    // Ignore if already dismissed
-                }
-            },
+            onActivate,
         });
 
         this._island.toast(icon, `${title}${body}`, {
             color: '#5e5ce6',
             duration: 3800,
+            placementGroup: 'alert',
+            subtitle: bodyText || source.title || '',
+            titleText: title,
+            onActivate,
         });
     }
 
