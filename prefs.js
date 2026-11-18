@@ -110,7 +110,7 @@ export default class DynamicIslandNotchPrefs extends ExtensionPreferences {
         posGroup.add(this._choiceRow(settings, 'position', 'Stile e Posizione', POSITIONS));
         posGroup.add(this._choiceRow(settings, 'idle-mode', 'Stato quando inattiva', IDLE_MODES));
         posGroup.add(this._choiceRow(settings, 'auto-dodge', 'Riduzione automatica su finestre (Auto-Dodge)', AUTO_DODGE_MODES));
-        posGroup.add(this._choiceRow(settings, 'toast-position', 'Avvisi Notifiche e Bluetooth', TOAST_POSITIONS));
+        posGroup.add(this._choiceRow(settings, 'toast-position', 'Avvisi Notifiche, Timer e Bluetooth', TOAST_POSITIONS));
         posGroup.add(this._choiceRow(settings, 'expand-on', 'Interazione per espandere', EXPAND_ON));
         posGroup.add(this._choiceRow(settings, 'animation-style', 'Velocità e stile animazioni', ANIM_STYLES));
 

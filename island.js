@@ -2315,7 +2315,10 @@ export const Island = GObject.registerClass({
                         this._btBusyPath = null;
                         if (!ok) {
                             const verb = dev.connected ? 'disconnettere' : 'connettere';
-                            this.toast('bluetooth-active-symbolic', `Impossibile ${verb} ${dev.name}`, {duration: 2400});
+                            this.toast('bluetooth-active-symbolic', `Impossibile ${verb} ${dev.name}`, {
+                                duration: 2400,
+                                placementGroup: 'alert',
+                            });
                         }
                         this._rebuildSystemSubList();
                     });
@@ -2669,7 +2672,13 @@ export const Island = GObject.registerClass({
             this._updateTimerUI();
             this._refresh();
             this._playTimerSound();
-            this.toast('alarm-symbolic', 'Timer completato', {color: '#30d158', duration: 4000});
+            this.toast('alarm-symbolic', 'Timer completato', {
+                color: '#30d158',
+                duration: 4000,
+                placementGroup: 'alert',
+                titleText: 'Timer completato',
+                subtitle: 'Conto alla rovescia terminato',
+            });
             return GLib.SOURCE_REMOVE;
         });
     }

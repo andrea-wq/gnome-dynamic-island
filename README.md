@@ -15,10 +15,10 @@ Un'estensione per **GNOME Shell 50 e 51 (Wayland)** che sostituisce o integra la
 ### 2. Media, Equalizzatore e Notifiche
 ![Media player MPRIS e centro notifiche](assets/screenshots/02-media-notifications.png)
 
-- **Controlli MPRIS2**: supporto a Spotify, browser (YouTube, web player) e riproduttori locali con copertina album (scaricata in cache locale se remota), titolo, artista, sorgente e tasti transport (`Precedente`, `Play/Pausa`, `Successivo`).
+- **Controlli MPRIS2 e Seek nel brano**: supporto a Spotify, browser (YouTube, web player) e riproduttori locali con copertina album (scaricata in cache locale se remota), titolo, artista, sorgente, tasti transport (`Precedente`, `Play/Pausa`, `Successivo`) e barra di avanzamento interattiva con minuti trascorsi/totali (`SetPosition` / `Seek`).
 - **Audio Visualizer Cairo**: sei stili configurabili (`bars`, `spectrum`, `segments`, `solid`, `wave`, `ribbon`) con aggiornamento in-place a zero allocazioni per frame.
 - **Centro notifiche integrato**: elenco scorrevole delle notifiche recenti con soppressione opzionale del popup nativo di GNOME e pulsante `Cancella tutte`.
-- **OSD di sistema**: intercetta Volume, Mute, Luminosità, stato Batteria/alimentatore, connessioni Bluetooth e registrazione schermo mostrandoli come toast fluidi.
+- **OSD e avvisi configurabili (`inside` / `below`)**: intercetta Volume, Mute, Luminosità, stato Batteria/alimentatore, connessioni Bluetooth, Timer completato e registrazione schermo; Notifiche, Timer e Bluetooth possono apparire dentro la notch oppure sotto di essa in una pillola dedicata con animazione di comparsa.
 
 ### 3. Hub Telemetria e Timer Pomodoro
 ![Hub telemetria con grafici e timer](assets/screenshots/03-hub-telemetry.png)
@@ -35,7 +35,7 @@ Un'estensione per **GNOME Shell 50 e 51 (Wayland)** che sostituisce o integra la
   - Supporta file locali dal file manager, dati binari da browser (`image/png`, `jpeg`, `webp`, `gif`, `avif`, `svg`), URL diretti, URI `data:image/...;base64,...` e l'estrazione delle immagini reali da `text/html` e link di Google Immagini (`imgurl=`).
   - Quando chiusa, mostra le miniature compatte direttamente sotto la notch (anche durante le notifiche) con drag-out diretto verso altre app, apertura con doppio click o click destro e rimozione tramite `×`.
 - **Note Rapide e Scratchpad**: checklist persistente su `GSettings` con possibilità di fissare una nota in primo piano nella pillola compatta (`pin`), più blocco note multi-riga.
-- **Scheda Sistema**: slider interattivi Volume e Luminosità, griglia Quick Settings 2x3 con pulsanti split Wi-Fi e Bluetooth (toggle rapido + elenco reti/dispositivi associati) e 6 azioni rapide (Screenshot, Terminale, Sospendi, Blocca, Riavvia, Spegni).
+- **Scheda Sistema**: slider interattivi Volume e Luminosità, griglia Quick Settings 2x3 con pulsanti split Wi-Fi (connessione/disconnessione reti e supporto WPA3) e Bluetooth (toggle con sincronizzazione `Rfkill` e connessione/disconnessione dispositivi associati) e 6 azioni rapide (Screenshot, Terminale, Sospendi, Blocca, Riavvia, Spegni).
 
 ---
 
@@ -85,7 +85,7 @@ Tutte le impostazioni sono modificabili live dalla finestra Libadwaita dedicata 
 ```
 
 Principali categorie configurabili:
-- **Stile e Posizione**: `position` (`notch-top`, `top-center`, `panel-center`, `panel-notch`, `panel-left`, `panel-right`, `bottom-center`), `idle-mode`, `auto-dodge` (`slim-clock`, `peek-bar`, `off`), `always-open-default-tab`, `default-tab`, `expand-on`, `animation-style`, `hide-top-bar`, `show-compact-status`, dimensioni e margini.
+- **Stile e Posizione**: `position` (`notch-top`, `top-center`, `panel-center`, `panel-notch`, `panel-left`, `panel-right`, `bottom-center`), `idle-mode`, `auto-dodge` (`slim-clock`, `peek-bar`, `off`), `toast-position` (`inside`, `below`), `always-open-default-tab`, `default-tab`, `expand-on`, `animation-style`, `hide-top-bar`, `show-compact-status`, dimensioni e margini.
 - **Aspetto Media**: dimensione e forma copertina, bordo, rotazione vinile, stile equalizer e colore accento.
 - **Moduli attivi**: toggle indipendenti per Media MPRIS, OSD Volume/Luminosità, Batteria, Bluetooth, Notifiche e soppressione banner GNOME, Workspaces, Registrazione schermo, Progresso file, Statistiche Hub e Suono fine timer.
 
