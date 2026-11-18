@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.dynamic-island-notch" path="/org/gnome/shell/extensions/dynamic-island-notch/">
+    <!-- Posizione e Stile Estetico -->
+    <key name="position" type="s">
+      <default>'notch-top'</default>
+      <summary>Posizione e stile dell'isola</summary>
+      <description>Valori: notch-top, top-center, panel-center, panel-notch, panel-left, panel-right, bottom-center</description>
+    </key>
+    <key name="idle-mode" type="s">
+      <default>'pill-clock-ws'</default>
+      <summary>Comportamento quando inattiva</summary>
+      <description>Valori: pill-clock-ws, workspace-only, clock-only, hidden</description>
+    </key>
+    <key name="auto-dodge" type="s">
+      <default>'slim-clock'</default>
+      <summary>Riduzione automatica su finestre sovrapposte (Auto-Dodge)</summary>
+      <description>Valori: slim-clock, peek-bar, off</description>
+    </key>
+    <key name="hide-top-bar" type="b">
+      <default>true</default>
+      <summary>Nascondi l'intera barra superiore di GNOME sostituendola con la Dynamic Island</summary>
+    </key>
+    <key name="show-compact-status" type="b">
+      <default>true</default>
+      <summary>Mostra icone di stato (Wi-Fi, Audio, Batteria %) a destra nell'isola compatta</summary>
+    </key>
+    <key name="hide-panel-clock" type="b">
+      <default>true</default>
+      <summary>Nascondi l'orologio centrale nativo di GNOME quando l'isola è centrata</summary>
+    </key>
+    <key name="expand-on" type="s">
+      <default>'hover'</default>
+      <summary>Modalità di espansione</summary>
+      <description>Valori: hover, click, both</description>
+    </key>
+    <key name="always-open-default-tab" type="b">
+      <default>true</default>
+      <summary>Apri sempre la scheda predefinita ad ogni apertura</summary>
+      <description>Se attivo apre sempre la scheda scelta in default-tab; se disattivo ricorda l'ultima scheda aperta</description>
+    </key>
+    <key name="default-tab" type="s">
+      <default>'auto'</default>
+      <summary>Scheda predefinita all'apertura</summary>
+      <description>Valori: auto, media, hub, notes, file, system</description>
+    </key>
+    <key name="animation-style" type="s">
+      <default>'snappy'</default>
+      <summary>Stile e velocità delle animazioni</summary>
+      <description>Valori: snappy, spring, smooth, instant</description>
+    </key>
+    <key name="margin" type="i">
+      <default>6</default>
+      <summary>Distanza dal bordo in pixel (modalità fluttuante)</summary>
+    </key>
+    <key name="width" type="i">
+      <default>0</default>
+      <summary>Larghezza minima dell'isola compatta (0 = automatica)</summary>
+    </key>
+    <key name="expanded-width" type="i">
+      <default>440</default>
+      <summary>Larghezza dell'isola espansa in pixel</summary>
+    </key>
+    <key name="text-width" type="i">
+      <default>190</default>
+      <summary>Larghezza massima del testo in pixel</summary>
+    </key>
+
+    <!-- Copertina Album e Visualizer -->
+    <key name="art-size" type="i">
+      <default>24</default>
+      <summary>Dimensione copertina compatta</summary>
+    </key>
+    <key name="art-size-expanded" type="i">
+      <default>60</default>
+      <summary>Dimensione copertina espansa</summary>
+    </key>
+    <key name="art-shape" type="s">
+      <default>'auto'</default>
+      <summary>Forma della copertina</summary>
+    </key>
+    <key name="art-border" type="s">
+      <default>'subtle'</default>
+      <summary>Bordo della copertina</summary>
+    </key>
+    <key name="art-compact" type="b">
+      <default>true</default>
+      <summary>Mostra copertina nell'isola compatta</summary>
+    </key>
+    <key name="art-spin" type="b">
+      <default>false</default>
+      <summary>Ruota copertina come un vinile durante la riproduzione</summary>
+    </key>
+    <key name="eq-style" type="s">
+      <default>'bars'</default>
+      <summary>Stile del visualizer musicale</summary>
+    </key>
+    <key name="accent-color" type="s">
+      <default>'#ff6a00'</default>
+      <summary>Colore accento principale (esadecimale)</summary>
+    </key>
+
+    <!-- Moduli e Funzioni Attive -->
+    <key name="show-media" type="b">
+      <default>true</default>
+      <summary>Mostra controlli musicali e media MPRIS</summary>
+    </key>
+    <key name="show-volume" type="b">
+      <default>true</default>
+      <summary>Sostituisci OSD Volume e Luminosità nella Dynamic Island</summary>
+    </key>
+    <key name="show-battery" type="b">
+      <default>true</default>
+      <summary>Mostra stato batteria e collegamento alimentatore</summary>
+    </key>
+    <key name="show-bluetooth" type="b">
+      <default>true</default>
+      <summary>Mostra connessione/disconnessione dispositivi Bluetooth</summary>
+    </key>
+    <key name="show-notifications" type="b">
+      <default>true</default>
+      <summary>Mostra notifiche in arrivo nella Dynamic Island</summary>
+    </key>
+    <key name="suppress-gnome-notification-banner" type="b">
+      <default>true</default>
+      <summary>Nascondi il popup standard di GNOME quando la notifica appare nell'isola</summary>
+    </key>
+    <key name="show-workspaces" type="b">
+      <default>true</default>
+      <summary>Mostra indicatore a pillola degli Spazi di Lavoro (Workspaces)</summary>
+    </key>
+    <key name="show-recording" type="b">
+      <default>true</default>
+      <summary>Mostra indicatore registrazione schermo attiva</summary>
+    </key>
+    <key name="show-progress" type="b">
+      <default>true</default>
+      <summary>Mostra avanzamento download e copia file</summary>
+    </key>
+    <key name="show-system-stats" type="b">
+      <default>true</default>
+      <summary>Mostra monitor CPU e RAM nell'Hub</summary>
+    </key>
+    <key name="timer-sound" type="b">
+      <default>true</default>
+      <summary>Riproduci un segnale sonoro quando il timer dell'Hub termina</summary>
+    </key>
+
+    <!-- Dati Persistenti Note Rapide -->
+    <key name="scratchpad-text" type="s">
+      <default>''</default>
+      <summary>Testo libero del blocco note rapido (Scratchpad)</summary>
+    </key>
+    <key name="quick-notes-json" type="s">
+      <default>'[{"id":1,"text":"Benvenuto nella tua Dynamic Island!","done":false,"pinned":false}]'</default>
+      <summary>Lista JSON delle mini-note e checklist</summary>
+    </key>
+  </schema>
+</schemalist>

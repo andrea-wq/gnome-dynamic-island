@@ -1,0 +1,12 @@
+{
+  "uuid": "dynamic-island@notch-dev",
+  "name": "GNOME Dynamic Island e Pill",
+  "description": "Dynamic Island stile macOS / iOS e Pillola dinamica GNOME per GNOME Shell 50 e 51. Include Media Player MPRIS con visualizer, OSD Volume/Luminosità, Notifiche, Batteria, Bluetooth, Pillola Spazi di Lavoro, Hub Produttività (CPU/RAM, Timer Pomodoro) e Note Rapide con Pin.",
+  "shell-version": [
+    "50",
+    "51"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.dynamic-island-notch",
+  "version-name": "1.0.0",
+  "url": "https://github.com/andrea/notch_dev"
+}

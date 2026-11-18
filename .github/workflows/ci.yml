@@ -1,0 +1,16 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install schema compiler
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-bin
+      - name: Validate metadata, permissions and GSettings schema
+        run: make check

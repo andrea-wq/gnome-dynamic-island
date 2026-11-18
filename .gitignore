@@ -1,0 +1,6 @@
+schemas/gschemas.compiled
+*.zip
+*.shell-extension.zip
+*~
+.DS_Store
+scratch/
